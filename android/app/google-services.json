@@ -1,0 +1,68 @@
+{
+  "project_info": {
+    "project_number": "388401831817",
+    "project_id": "ricostudies-5bb22",
+    "storage_bucket": "ricostudies-5bb22.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:388401831817:android:38d6d5c8455687a8618b58",
+        "android_client_info": {
+          "package_name": "com.example.bate_ponto"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "388401831817-l178dbsarhiai8pn27ni8lmj8aehk6a2.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA1LvoOslyHAXqsDykFuyQuqzsy0qOnLU0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "388401831817-l178dbsarhiai8pn27ni8lmj8aehk6a2.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:388401831817:android:d3c163e862666070618b58",
+        "android_client_info": {
+          "package_name": "com.example.chat_app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "388401831817-l178dbsarhiai8pn27ni8lmj8aehk6a2.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA1LvoOslyHAXqsDykFuyQuqzsy0qOnLU0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "388401831817-l178dbsarhiai8pn27ni8lmj8aehk6a2.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
