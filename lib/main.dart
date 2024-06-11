@@ -1,5 +1,5 @@
 import 'package:bate_ponto/home.dart';
-import 'package:bate_ponto/login.dart';
+import 'package:bate_ponto/auth.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/cupertino.dart';
@@ -32,13 +32,6 @@ main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // const ip = "192.168.0.106";
-  // const ip = "127.0.0.1";
-  // const ip = "192.168.0.106";
-
-  // await FirebaseAuth.instance
-  //     .useAuthEmulator(ip, 9099, automaticHostMapping: false);
-
   runApp(const InitialApp());
 }
 
@@ -51,15 +44,6 @@ class InitialApp extends StatelessWidget {
       theme: theme,
       darkTheme: darkTheme,
       debugShowCheckedModeBanner: false,
-      // localizationsDelegates: const [
-      //   AppLocalizations.delegate,
-      //   DefaultMaterialLocalizations.delegate,
-      //   DefaultWidgetsLocalizations.delegate,
-      //   DefaultCupertinoLocalizations.delegate,
-      // ],
-      // supportedLocales: const [
-      //   Locale("pt", "BR"),
-      // ],
       home: StreamBuilder(
         stream: FirebaseAuth.instance.userChanges(),
         builder: (context, snapshot) {
@@ -69,7 +53,7 @@ class InitialApp extends StatelessWidget {
           if (snapshot.data == null) {
             return const AuthScreen();
           }
-          return HomePage(snapshot.data!);
+          return const HomePage();
         },
       ),
       // home: user == null ? const AuthScreen() : HomePage(user),

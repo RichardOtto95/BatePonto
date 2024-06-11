@@ -18,14 +18,14 @@ Widget adaptiveAction(
   }
 }
 
-showCustomAdaptiveDialog(
+showCustomAdaptiveDialog<T>(
   context, {
   required String title,
   required String description,
   Widget? child,
   Function()? onConfirm,
-}) =>
-    showAdaptiveDialog<String>(
+}) async =>
+    await showAdaptiveDialog<String>(
       context: context,
       builder: (BuildContext context) => AlertDialog.adaptive(
         title: Text(title),

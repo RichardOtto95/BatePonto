@@ -2,7 +2,7 @@
 
 import 'dart:io';
 
-import 'package:bate_ponto/widgets/user_image_picker.dart';
+import 'package:bate_ponto/shared/widgets/user_image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
@@ -96,6 +96,34 @@ class _AuthScreenState extends State<AuthScreen> {
         _isAuthenticating = false;
       });
     }
+  }
+
+  void _newSubmit() async {
+    final isValid = _formKey.currentState!.validate();
+
+    if (!isValid || (!_isLogin && _selectedImage == null)) {
+      return;
+    }
+
+    _formKey.currentState!.save();
+
+    var actionCodeSettings = ActionCodeSettings(
+      url: 'https://www.example.com/finishSignUp?cartId=1234',
+      handleCodeInApp: true,
+      iOSBundleId: 'com.example.ios',
+      androidPackageName: 'com.example.bate_ponto',
+      androidInstallApp: true,
+      androidMinimumVersion: '12',
+    );
+
+    FirebaseAuth.instance
+        .sendSignInLinkToEmail(
+          email: _enteredEmail,
+          actionCodeSettings: actionCodeSettings,
+        )
+        .catchError(
+            (onError) => print('Error sending email verification $onError'))
+        .then((value) => print('Successfully sent email verification'));
   }
 
   @override

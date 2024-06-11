@@ -1,58 +1,30 @@
-import 'dart:async';
-
-import 'package:bate_ponto/entities/dot.dart';
-import 'package:bate_ponto/widgets/adaptive_dialog.dart';
-import 'package:bate_ponto/widgets/load_overlay.dart';
+import 'package:bate_ponto/models/clock_model.dart';
+import 'package:bate_ponto/models/environment_model.dart';
+import 'package:bate_ponto/shared/clock_dialogs.dart';
+import 'package:bate_ponto/view_models/clock_view_model.dart';
+import 'package:bate_ponto/view_models/timer_view_model.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import 'package:intl/intl.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage(this.user, {super.key});
-
-  final User user;
+  const HomePage({super.key});
 
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
-  final _timer = TimerController();
+class _HomePageState extends State<HomePage>
+    with SingleTickerProviderStateMixin {
+  final _timer = TimerViewModel();
 
-  void _removeDot(Dot dot) async {
-    final entry = getLoadOverlay(context);
+  final viewModel = ClockViewModel();
 
-    try {
-      final result = await dot.delete();
-
-      if (!context.mounted) {
-        entry.remove();
-        return;
-      }
-
-      ScaffoldMessenger.of(context).clearSnackBars();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          duration: const Duration(seconds: 3),
-          content: Text(result),
-          action: result.contains("successfully")
-              ? SnackBarAction(
-                  label: 'Undo',
-                  onPressed: dot.register,
-                )
-              : null,
-        ),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).clearSnackBars();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e")),
-      );
-    }
-
-    entry.remove();
+  @override
+  void initState() {
+    viewModel.getEnvironments(context);
+    super.initState();
   }
 
   @override
@@ -60,6 +32,37 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Bate Ponto"),
+        actions: [
+          ValueListenableBuilder<List<Environment>?>(
+            valueListenable: viewModel.environments,
+            builder: (context, environments, child) {
+              return PopupMenuButton(
+                itemBuilder: (context) {
+                  return [
+                    PopupMenuItem(
+                      onTap: environments == null
+                          ? null
+                          : () => viewModel.createEnvironment(context),
+                      enabled: environments != null,
+                      child: ListTile(
+                        enabled: environments != null,
+                        title: const Text("Criar Ambiente"),
+                        leading: const Icon(Icons.domain_add_rounded),
+                      ),
+                    ),
+                    PopupMenuItem(
+                      onTap: () => viewModel.signOut(context),
+                      child: const ListTile(
+                        title: Text("Logout"),
+                        leading: Icon(Icons.logout_rounded),
+                      ),
+                    ),
+                  ];
+                },
+              );
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -77,47 +80,101 @@ class _HomePageState extends State<HomePage> {
           Text(DateFormat.yMMMMEEEEd().format(_timer.now)),
           const SizedBox(height: 30),
           Expanded(
-            child: StreamBuilder(
-              stream: FirebaseFirestore.instance
-                  .collection("users")
-                  .doc(widget.user.uid)
-                  .collection("dots")
-                  .orderBy("id", descending: true)
-                  .withConverter<Dot>(
-                      fromFirestore: Dot.fromFirestore,
-                      toFirestore: (value, options) => value.toFirestore())
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
+            child: ValueListenableBuilder<List<Environment>?>(
+              valueListenable: viewModel.environments,
+              builder: (context, environments, child) {
+                if (environments == null) {
                   return const Center(
                     child: CircularProgressIndicator(),
                   );
                 }
 
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return const Center(child: Text("Nenhum ponto registrado"));
+                if (environments.isEmpty) {
+                  return const Center(
+                      child: Text("Nenhum ambiente cadastrado."));
                 }
 
-                final docs = snapshot.data!.docs;
-
-                return ListView.builder(
-                  padding: const EdgeInsets.only(bottom: 60),
-                  itemCount: docs.length,
-                  itemBuilder: (context, index) {
-                    final dotData = docs[index].data();
-                    final previousDotData =
-                        index - 1 >= 0 ? docs[index - 1].data() : null;
-                    final showDate = previousDotData != null &&
-                        dotData.ymdFormated != previousDotData.ymdFormated;
-
-                    return DotTile(
-                      dotData,
-                      onDismissed: (dir) => _removeDot(dotData),
-                      showDate: showDate,
+                return StatefulBuilder(
+                  builder: (context, stf) {
+                    return Column(
+                      children: [
+                        DefaultTabController(
+                          length: environments.length,
+                          child: TabBar(
+                            onTap: (value) =>
+                                viewModel.environmentIndex.value = value,
+                            tabs: [
+                              for (final environment in environments)
+                                Tab(text: environment.title),
+                            ],
+                          ),
+                        ),
+                        child!,
+                      ],
                     );
                   },
                 );
               },
+              child: Flexible(
+                child: ValueListenableBuilder<int>(
+                  valueListenable: viewModel.environmentIndex,
+                  builder: (context, index, child) {
+                    final env = viewModel.environments.value![index];
+                    return StreamBuilder(
+                      stream: FirebaseFirestore.instance
+                          .collection("users")
+                          .doc(viewModel.user.uid)
+                          .collection("environments")
+                          .doc(env.id)
+                          .collection("clocks")
+                          .orderBy("id", descending: true)
+                          .withConverter<Clock>(
+                            fromFirestore: Clock.fromFirestore,
+                            toFirestore: (value, options) =>
+                                value.toFirestore(),
+                          )
+                          .snapshots(),
+                      builder: (context, snapshot) {
+                        if (!snapshot.hasData) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
+
+                        if (snapshot.data!.docs.isEmpty) {
+                          return const Center(
+                              child: Text("Nenhum ponto registrado"));
+                        }
+
+                        final docs = snapshot.data!.docs;
+
+                        return ListView.builder(
+                          padding: const EdgeInsets.only(bottom: 80, top: 15),
+                          itemCount: docs.length,
+                          itemBuilder: (context, index) {
+                            final clockData = docs[index].data();
+                            final previousClockData =
+                                index - 1 >= 0 ? docs[index - 1].data() : null;
+                            final showDate = (previousClockData != null &&
+                                    clockData.ymdFormated !=
+                                        previousClockData.ymdFormated) ||
+                                index == 0;
+
+                            return ClockTile(
+                              clockData,
+                              onDismissed: (dir) => viewModel.removeClock(
+                                context,
+                                clockData,
+                              ),
+                              showDate: showDate,
+                            );
+                          },
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
             ),
           ),
         ],
@@ -127,137 +184,16 @@ class _HomePageState extends State<HomePage> {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           FloatingActionButton.extended(
+            isExtended: true,
             label: const Text("Manual"),
             icon: const Icon(Icons.add),
-            onPressed: () {
-              DateTime date = _timer.now;
-              // TimeOfDay time = TimeOfDay.fromDateTime(_timer.now);
-              showCustomAdaptiveDialog(
-                context,
-                title: "Bater Ponto",
-                description: "",
-                child: StatefulBuilder(builder: (context, stf) {
-                  return Row(
-                    children: [
-                      Card(
-                        child: InkWell(
-                          onTap: () async {
-                            final newDate = await showDatePicker(
-                              context: context,
-                              initialDate: date,
-                              firstDate: DateTime(2000),
-                              lastDate: DateTime.now(),
-                            );
-
-                            if (newDate != null) {
-                              stf(() {
-                                date = newDate;
-                              });
-                            }
-                          },
-                          borderRadius: BorderRadius.circular(11),
-                          child: Padding(
-                            padding: const EdgeInsets.all(10),
-                            child: Text(
-                              DateFormat("yyyy/MM/dd").format(date),
-                              style: Theme.of(context).textTheme.titleLarge,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const Spacer(),
-                      Card(
-                        child: InkWell(
-                          onTap: () async {
-                            final time = TimeOfDay.fromDateTime(date);
-
-                            final newTime = await showTimePicker(
-                              context: context,
-                              initialTime: time,
-                            );
-
-                            if (newTime != null) {
-                              stf(() {
-                                date = DateTime(
-                                  date.year,
-                                  date.month,
-                                  date.day,
-                                  newTime.hour,
-                                  newTime.minute,
-                                );
-                              });
-                            }
-                          },
-                          borderRadius: BorderRadius.circular(11),
-                          child: Padding(
-                            padding: const EdgeInsets.all(10),
-                            child: Text(
-                              DateFormat("kk:mm").format(date),
-                              style: Theme.of(context).textTheme.titleLarge,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  );
-                }),
-                onConfirm: () async {
-                  final entry = getLoadOverlay(context);
-                  final dot = Dot(widget.user.uid, date);
-                  try {
-                    final result = await dot.register();
-
-                    if (!context.mounted) return;
-
-                    ScaffoldMessenger.of(context).clearSnackBars();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(result)),
-                    );
-                  } catch (e) {
-                    ScaffoldMessenger.of(context).clearSnackBars();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(e.toString())),
-                    );
-                  }
-                  Navigator.pop(context);
-                  entry.remove();
-                },
-              );
-            },
+            onPressed: () => viewModel.manualPunchDialog(context),
           ),
           const SizedBox(height: 20),
           FloatingActionButton.extended(
             label: const Text("Automático"),
             icon: const Icon(Icons.add),
-            onPressed: () {
-              final dot = Dot(widget.user.uid, _timer.now);
-              showCustomAdaptiveDialog(
-                context,
-                title: "Bater Ponto",
-                description:
-                    "Bater o ponto com a hora: ${dot.completeFormated}",
-                onConfirm: () async {
-                  final entry = getLoadOverlay(context);
-                  try {
-                    final result = await dot.register();
-
-                    if (!context.mounted) return;
-
-                    ScaffoldMessenger.of(context).clearSnackBars();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(result)),
-                    );
-                  } catch (e) {
-                    ScaffoldMessenger.of(context).clearSnackBars();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(e.toString())),
-                    );
-                  }
-                  Navigator.pop(context);
-                  entry.remove();
-                },
-              );
-            },
+            onPressed: () => viewModel.autoPunchDialog(context),
           ),
         ],
       ),
@@ -265,15 +201,15 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-class DotTile extends StatelessWidget {
-  const DotTile(
-    this.dot, {
+class ClockTile extends StatelessWidget {
+  const ClockTile(
+    this.clock, {
     required this.onDismissed,
     this.showDate = false,
     super.key,
   });
 
-  final Dot dot;
+  final Clock clock;
 
   final bool showDate;
 
@@ -281,33 +217,80 @@ class DotTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final titleStyle = Theme.of(context).textTheme.titleMedium;
+    final bodyStyle = Theme.of(context).textTheme.bodyLarge;
+    final shape = StadiumBorder(
+      side: BorderSide(color: Theme.of(context).colorScheme.primary),
+    );
     final tile = Dismissible(
-      key: ValueKey(dot),
+      key: ValueKey(clock),
       onDismissed: onDismissed,
-      child: ListTile(title: Text(dot.completeFormated)),
+      child: ListTile(
+        dense: true,
+        onTap: () => manualPunch(
+          context,
+          (date) => clock.punchEnd(date),
+          clock.end,
+        ),
+        title: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            Card(
+              shape: shape,
+              child: Container(
+                width: 70,
+                height: 40,
+                alignment: Alignment.center,
+                child: Text(clock.bHour, style: bodyStyle),
+              ),
+            ),
+            Icon(
+              Icons.remove_rounded,
+              color: Theme.of(context).colorScheme.error,
+            ),
+            Card(
+              shape: shape,
+              child: Container(
+                width: 70,
+                height: 40,
+                alignment: Alignment.center,
+                child: Text(clock.eHour, style: bodyStyle),
+              ),
+            ),
+            Icon(
+              Icons.arrow_right_alt_rounded,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            Card(
+              shape: shape,
+              child: Container(
+                width: 70,
+                height: 40,
+                alignment: Alignment.center,
+                child: Text(clock.diffenrenceText(), style: bodyStyle),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
 
     if (showDate) {
       return Column(
-        children: [Text(dot.day), tile],
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 15),
+            child: Text(
+              clock.day,
+              style: titleStyle,
+            ),
+          ),
+          tile,
+        ],
       );
     }
 
     return tile;
   }
-}
-
-class TimerController extends ChangeNotifier {
-  DateTime now;
-
-  final _second = const Duration(seconds: 1);
-
-  TimerController() : now = DateTime.now() {
-    _start();
-  }
-
-  Timer _start() => Timer.periodic(_second, (timer) {
-        now = now.add(_second);
-        notifyListeners();
-      });
 }
